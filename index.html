@@ -1,0 +1,154 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Exercise Tracker</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; max-width: 900px; }
+    h2 { margin-top: 30px; }
+    form { margin-bottom: 1rem; padding: 12px; border: 1px solid #ddd; border-radius: 8px; }
+    label { display:block; margin:6px 0 2px; }
+    input[type="text"], input[type="number"], input[type="date"], select { width:100%; padding:8px; box-sizing:border-box; }
+    button { margin-top:8px; padding:8px 12px; cursor:pointer; }
+    pre { background:#f8f8f8; padding:12px; border-radius:6px; max-height:300px; overflow:auto; }
+  </style>
+</head>
+<body>
+  <h1>Exercise Tracker</h1>
+
+  <h2>Create User</h2>
+  <form id="create-user-form">
+    <label for="new-username">Username</label>
+    <input id="new-username" name="username" type="text" required />
+    <button type="submit">Create</button>
+  </form>
+  <div id="create-user-result"></div>
+
+  <h2>Add Exercise</h2>
+  <form id="add-ex-form">
+    <label for="user-id">User</label>
+    <select id="user-id" required></select>
+
+    <label for="desc">Description</label>
+    <input id="desc" name="description" type="text" required />
+
+    <label for="dur">Duration (minutes)</label>
+    <input id="dur" name="duration" type="number" required />
+
+    <label for="date">Date (optional)</label>
+    <input id="date" name="date" type="date" />
+
+    <button type="submit">Add Exercise</button>
+  </form>
+  <div id="add-ex-result"></div>
+
+  <h2>Get Logs</h2>
+  <form id="get-logs-form">
+    <label for="log-user">User</label>
+    <select id="log-user" required></select>
+
+    <label for="from">From (optional)</label>
+    <input id="from" name="from" type="date" />
+
+    <label for="to">To (optional)</label>
+    <input id="to" name="to" type="date" />
+
+    <label for="limit">Limit (optional)</label>
+    <input id="limit" name="limit" type="number" min="1" />
+
+    <button type="submit">Get Log</button>
+  </form>
+  <pre id="logs-output">Result will appear here...</pre>
+
+  <h2>All Users</h2>
+  <button id="refresh-users">Refresh list</button>
+  <pre id="users-output">Users list will appear here...</pre>
+
+  <script>
+    const apiRoot = '/api';
+
+    async function loadUsersInto(selectEl) {
+      const res = await fetch(apiRoot + '/users');
+      const users = await res.json();
+      selectEl.innerHTML = '';
+      users.forEach(u => {
+        const opt = document.createElement('option');
+        opt.value = u._id;
+        opt.textContent = u.username + ' (' + u._id + ')';
+        selectEl.appendChild(opt);
+      });
+    }
+
+    async function refreshAllUserLists() {
+      const userSelects = [document.getElementById('user-id'), document.getElementById('log-user')];
+      for (const s of userSelects) {
+        await loadUsersInto(s);
+      }
+      // also fill raw users output
+      const res = await fetch(apiRoot + '/users');
+      const users = await res.json();
+      document.getElementById('users-output').textContent = JSON.stringify(users, null, 2);
+    }
+
+    document.getElementById('create-user-form').addEventListener('submit', async e => {
+      e.preventDefault();
+      const username = document.getElementById('new-username').value.trim();
+      if (!username) return;
+      const res = await fetch(apiRoot + '/users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username })
+      });
+      const data = await res.json();
+      document.getElementById('create-user-result').textContent = JSON.stringify(data, null, 2);
+      document.getElementById('new-username').value = '';
+      await refreshAllUserLists();
+    });
+
+    document.getElementById('add-ex-form').addEventListener('submit', async e => {
+      e.preventDefault();
+      const userId = document.getElementById('user-id').value;
+      const description = document.getElementById('desc').value.trim();
+      const duration = document.getElementById('dur').value;
+      const date = document.getElementById('date').value; // yyyy-mm-dd or empty
+      if (!userId || !description || !duration) return;
+
+      const payload = { description, duration };
+      if (date) payload.date = date;
+
+      const res = await fetch(apiRoot + '/users/' + userId + '/exercises', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      document.getElementById('add-ex-result').textContent = JSON.stringify(data, null, 2);
+      document.getElementById('desc').value = '';
+      document.getElementById('dur').value = '';
+      document.getElementById('date').value = '';
+    });
+
+    document.getElementById('get-logs-form').addEventListener('submit', async e => {
+      e.preventDefault();
+      const userId = document.getElementById('log-user').value;
+      const from = document.getElementById('from').value;
+      const to = document.getElementById('to').value;
+      const limit = document.getElementById('limit').value;
+      const params = new URLSearchParams();
+      if (from) params.append('from', from);
+      if (to) params.append('to', to);
+      if (limit) params.append('limit', limit);
+      const url = apiRoot + '/users/' + userId + '/logs' + (params.toString() ? '?' + params.toString() : '');
+      const res = await fetch(url);
+      const data = await res.json();
+      document.getElementById('logs-output').textContent = JSON.stringify(data, null, 2);
+    });
+
+    document.getElementById('refresh-users').addEventListener('click', refreshAllUserLists);
+
+    // initial load
+    refreshAllUserLists();
+  </script>
+</body>
+</html>
